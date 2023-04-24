@@ -16,6 +16,7 @@
  */
 package org.apache.rocketmq.namesrv;
 
+import org.apache.commons.lang3.time.DateUtils;
 import org.apache.rocketmq.common.namesrv.NamesrvConfig;
 import org.apache.rocketmq.remoting.netty.NettyServerConfig;
 import org.junit.After;
@@ -36,6 +37,8 @@ public class NameServerInstanceTest {
         boolean initResult = nameSrvController.initialize();
         assertThat(initResult).isTrue();
         nameSrvController.start();
+
+        Thread.sleep(DateUtils.MILLIS_PER_DAY);
     }
 
     /**

@@ -279,6 +279,7 @@ public class MQClientAPIImpl implements NameServerUpdateCallback {
 
     public String fetchNameServerAddr() {
         try {
+            // topAddressing 是啥?
             String addrs = this.topAddressing.fetchNSAddr();
             if (!UtilAll.isBlank(addrs)) {
                 if (!addrs.equals(this.nameSrvAddr)) {
@@ -1783,7 +1784,7 @@ public class MQClientAPIImpl implements NameServerUpdateCallback {
         GetRouteInfoRequestHeader requestHeader = new GetRouteInfoRequestHeader();
         requestHeader.setTopic(topic);
         RemotingCommand request = RemotingCommand.createRequestCommand(RequestCode.GET_ROUTEINFO_BY_TOPIC, requestHeader);
-
+        // address 为null，请求会发送到name server
         RemotingCommand response = this.remotingClient.invokeSync(null, request, timeoutMillis);
         assert response != null;
         switch (response.getCode()) {

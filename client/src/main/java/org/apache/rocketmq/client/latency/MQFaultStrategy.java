@@ -63,6 +63,7 @@ public class MQFaultStrategy {
                 for (int i = 0; i < tpInfo.getMessageQueueList().size(); i++) {
                     int pos = index++ % tpInfo.getMessageQueueList().size();
                     MessageQueue mq = tpInfo.getMessageQueueList().get(pos);
+                    // 遍历找个可用的节点
                     if (!StringUtils.equals(lastBrokerName, mq.getBrokerName()) && latencyFaultTolerance.isAvailable(mq.getBrokerName())) {
                         return mq;
                     }
@@ -92,6 +93,8 @@ public class MQFaultStrategy {
 
     public void updateFaultItem(final String brokerName, final long currentLatency, boolean isolation) {
         if (this.sendLatencyFaultEnable) {
+            // 两个数组，基于延迟获取对应不可用时间
+            // 节点发送异常的时候，isolation为true，隔离固定时间
             long duration = computeNotAvailableDuration(isolation ? 30000 : currentLatency);
             this.latencyFaultTolerance.updateFaultItem(brokerName, currentLatency, duration);
         }

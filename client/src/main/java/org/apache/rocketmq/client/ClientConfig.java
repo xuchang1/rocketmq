@@ -120,6 +120,7 @@ public class ClientConfig {
         }
     }
 
+    // 包装下namespace
     public String withNamespace(String resource) {
         return NamespaceUtil.wrapNamespace(this.getNamespace(), resource);
     }
@@ -340,6 +341,7 @@ public class ClientConfig {
         }
 
         if (StringUtils.isNotEmpty(this.namesrvAddr)) {
+            // 正则校验
             if (NameServerAddressUtils.validateInstanceEndpoint(namesrvAddr)) {
                 namespace = NameServerAddressUtils.parseInstanceIdFromEndpoint(namesrvAddr);
             }

@@ -203,10 +203,13 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
                     }
                     ch.pipeline().addLast(
                         nettyClientConfig.isDisableNettyWorkerGroup() ? null : defaultEventExecutorGroup,
+                        // 消息的编解码
                         new NettyEncoder(),
                         new NettyDecoder(),
                         new IdleStateHandler(0, 0, nettyClientConfig.getClientChannelMaxIdleTimeSeconds()),
+                        // 生命周期中，publish 各种 event
                         new NettyConnectManageHandler(),
+                        // 解析到的消息处理
                         new NettyClientHandler());
                 }
             });
@@ -228,6 +231,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
             handler.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
         }
 
+        // scan response 是否超时
         TimerTask timerTaskScanResponseTable = new TimerTask() {
             @Override
             public void run(Timeout timeout) {
@@ -242,6 +246,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
         };
         this.timer.newTimeout(timerTaskScanResponseTable, 1000 * 3, TimeUnit.MILLISECONDS);
 
+        // scan name server的连接状态
         int connectTimeoutMillis = this.nettyClientConfig.getConnectTimeoutMillis();
         TimerTask timerTaskScanAvailableNameSrv = new TimerTask() {
             @Override
@@ -681,10 +686,12 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
 
                 if (createNewConnection) {
                     String[] hostAndPort = getHostAndPort(addr);
+                    // 基于netty发起到对端的连接请求
                     ChannelFuture channelFuture = fetchBootstrap(addr)
                         .connect(hostAndPort[0], Integer.parseInt(hostAndPort[1]));
                     LOGGER.info("createChannel: begin to connect remote host[{}] asynchronously", addr);
                     cw = new ChannelWrapper(channelFuture);
+                    // 基于address，维护连接的channel信息
                     this.channelTables.put(addr, cw);
                 }
             } catch (Exception e) {
@@ -698,6 +705,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
 
         if (cw != null) {
             ChannelFuture channelFuture = cw.getChannelFuture();
+            // 等待连接完成
             if (channelFuture.awaitUninterruptibly(this.nettyClientConfig.getConnectTimeoutMillis())) {
                 if (cw.isOK()) {
                     LOGGER.info("createChannel: connect remote host[{}] success, {}", addr, channelFuture.toString());
@@ -951,6 +959,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
 
             super.connect(ctx, remoteAddress, localAddress, promise);
 
+            // publish connect event
             if (NettyRemotingClient.this.channelEventListener != null) {
                 NettyRemotingClient.this.putNettyEvent(new NettyEvent(NettyEventType.CONNECT, remote, ctx.channel()));
             }
@@ -963,6 +972,7 @@ public class NettyRemotingClient extends NettyRemotingAbstract implements Remoti
             closeChannel(ctx.channel());
             super.disconnect(ctx, promise);
 
+            // publish close event
             if (NettyRemotingClient.this.channelEventListener != null) {
                 NettyRemotingClient.this.putNettyEvent(new NettyEvent(NettyEventType.CLOSE, remoteAddress, ctx.channel()));
             }

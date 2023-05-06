@@ -68,12 +68,14 @@ public class TopicPublishInfo {
 
     public MessageQueue selectOneMessageQueue(final String lastBrokerName) {
         if (lastBrokerName == null) {
+            // 没选过，则轮训
             return selectOneMessageQueue();
         } else {
             for (int i = 0; i < this.messageQueueList.size(); i++) {
                 int index = this.sendWhichQueue.incrementAndGet();
                 int pos = index % this.messageQueueList.size();
                 MessageQueue mq = this.messageQueueList.get(pos);
+                // 轮训但是排除上一次选过的
                 if (!mq.getBrokerName().equals(lastBrokerName)) {
                     return mq;
                 }
@@ -83,6 +85,7 @@ public class TopicPublishInfo {
     }
 
     public MessageQueue selectOneMessageQueue() {
+        // 线程级别的轮训
         int index = this.sendWhichQueue.incrementAndGet();
         int pos = index % this.messageQueueList.size();
 

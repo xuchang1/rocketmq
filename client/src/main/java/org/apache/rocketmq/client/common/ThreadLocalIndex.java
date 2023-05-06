@@ -24,6 +24,7 @@ public class ThreadLocalIndex {
     private final Random random = new Random();
     private final static int POSITIVE_MASK = 0x7FFFFFFF;
 
+    // 线程级别的增长
     public int incrementAndGet() {
         Integer index = this.threadLocalIndex.get();
         if (null == index) {

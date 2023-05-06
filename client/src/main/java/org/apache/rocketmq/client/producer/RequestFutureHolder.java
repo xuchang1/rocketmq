@@ -80,6 +80,7 @@ public class RequestFutureHolder {
                 @Override
                 public void run() {
                     try {
+                        // 超时请求定时处理
                         RequestFutureHolder.getInstance().scanExpiredRequest();
                     } catch (Throwable e) {
                         log.error("scan RequestFutureTable exception", e);

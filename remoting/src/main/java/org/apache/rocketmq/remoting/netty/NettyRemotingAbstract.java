@@ -167,9 +167,11 @@ public abstract class NettyRemotingAbstract {
         if (msg != null) {
             switch (msg.getType()) {
                 case REQUEST_COMMAND:
+                    // 作为 server 端接收请求
                     processRequestCommand(ctx, msg);
                     break;
                 case RESPONSE_COMMAND:
+                    // 作为 client 端解析响应
                     processResponseCommand(ctx, msg);
                     break;
                 default:
@@ -354,6 +356,7 @@ public abstract class NettyRemotingAbstract {
      */
     public void processResponseCommand(ChannelHandlerContext ctx, RemotingCommand cmd) {
         final int opaque = cmd.getOpaque();
+        // 通过唯一标识，获取request对应的ResponseFuture，set后唤醒request阻塞的线程
         final ResponseFuture responseFuture = responseTable.get(opaque);
         if (responseFuture != null) {
             responseFuture.setResponseCommand(cmd);
@@ -361,6 +364,7 @@ public abstract class NettyRemotingAbstract {
             responseTable.remove(opaque);
 
             if (responseFuture.getInvokeCallback() != null) {
+                // 通过 callback 线程池异步执行回调
                 executeInvokeCallback(responseFuture);
             } else {
                 responseFuture.putResponse(cmd);
@@ -446,7 +450,7 @@ public abstract class NettyRemotingAbstract {
         while (it.hasNext()) {
             Entry<Integer, ResponseFuture> next = it.next();
             ResponseFuture rep = next.getValue();
-
+            // check response 是否超时
             if ((rep.getBeginTimestamp() + rep.getTimeoutMillis() + 1000) <= System.currentTimeMillis()) {
                 rep.release();
                 it.remove();
@@ -471,6 +475,7 @@ public abstract class NettyRemotingAbstract {
         final int opaque = request.getOpaque();
 
         try {
+            // 发送消息，并缓存response
             final ResponseFuture responseFuture = new ResponseFuture(channel, opaque, timeoutMillis, null, null);
             this.responseTable.put(opaque, responseFuture);
             final SocketAddress addr = channel.remoteAddress();
@@ -487,6 +492,7 @@ public abstract class NettyRemotingAbstract {
                 log.warn("Failed to write a request command to {}, caused by underlying I/O operation failure", addr);
             });
 
+            // wait等待异步响应set, 超时表示未获取到
             RemotingCommand responseCommand = responseFuture.waitResponse(timeoutMillis);
             if (null == responseCommand) {
                 if (responseFuture.isSendRequestOK()) {

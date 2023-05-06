@@ -119,6 +119,7 @@ public class MQClientInstance {
      * And the value is the broker instance list that belongs to the broker cluster.
      * For the sub map, the key is the id of single broker instance, and the value is the address.
      */
+    // brokerCluster name -> broker cluster info; broker cluster node id -> broker cluster node address
     private final ConcurrentMap<String, HashMap<Long, String>> brokerAddrTable = new ConcurrentHashMap<>();
 
     private final ConcurrentMap<String/* Broker Name */, HashMap<String/* address */, Integer>> brokerVersionTable = new ConcurrentHashMap<>();
@@ -254,11 +255,15 @@ public class MQClientInstance {
                     this.serviceState = ServiceState.START_FAILED;
                     // If not specified,looking address from name server
                     if (null == this.clientConfig.getNamesrvAddr()) {
+                        // 通过 topAddressing 发送http请求获取name server 信息(这个是啥?)
                         this.mQClientAPIImpl.fetchNameServerAddr();
                     }
                     // Start request-response channel
+                    // 初始化了作为client端，bootstrap的各种配置信息
                     this.mQClientAPIImpl.start();
+
                     // Start various schedule tasks
+                    // 各种定时任务启动
                     this.startScheduledTask();
                     // Start pull service
                     this.pullMessageService.start();
@@ -278,6 +283,7 @@ public class MQClientInstance {
     }
 
     private void startScheduledTask() {
+        // 定时拉取name server信息
         if (null == this.clientConfig.getNamesrvAddr()) {
             this.scheduledExecutorService.scheduleAtFixedRate(() -> {
                 try {
@@ -288,6 +294,7 @@ public class MQClientInstance {
             }, 1000 * 10, 1000 * 60 * 2, TimeUnit.MILLISECONDS);
         }
 
+        // 定时从name server拉取topic信息进行update
         this.scheduledExecutorService.scheduleAtFixedRate(() -> {
             try {
                 MQClientInstance.this.updateTopicRouteInfoFromNameServer();
@@ -296,6 +303,7 @@ public class MQClientInstance {
             }
         }, 10, this.clientConfig.getPollNameServerInterval(), TimeUnit.MILLISECONDS);
 
+        // 定时清理下线的broker信息，并发送心跳包
         this.scheduledExecutorService.scheduleAtFixedRate(() -> {
             try {
                 MQClientInstance.this.cleanOfflineBroker();
@@ -305,6 +313,7 @@ public class MQClientInstance {
             }
         }, 1000, this.clientConfig.getHeartbeatBrokerInterval(), TimeUnit.MILLISECONDS);
 
+        // 定时持久化consumer的offset信息
         this.scheduledExecutorService.scheduleAtFixedRate(() -> {
             try {
                 MQClientInstance.this.persistAllConsumerOffset();
@@ -313,6 +322,7 @@ public class MQClientInstance {
             }
         }, 1000 * 10, this.clientConfig.getPersistConsumerOffsetInterval(), TimeUnit.MILLISECONDS);
 
+        // consumer端消费线程池check
         this.scheduledExecutorService.scheduleAtFixedRate(() -> {
             try {
                 MQClientInstance.this.adjustThreadPool();
@@ -515,7 +525,9 @@ public class MQClientInstance {
         return false;
     }
 
+    // 发送心跳失败，只打印了log？
     private void sendHeartbeatToAllBroker() {
+        // 心跳包中，包含client端consumer、producer等信息
         final HeartbeatData heartbeatData = this.prepareHeartbeatData();
         final boolean producerEmpty = heartbeatData.getProducerDataSet().isEmpty();
         final boolean consumerEmpty = heartbeatData.getConsumerDataSet().isEmpty();
@@ -540,11 +552,13 @@ public class MQClientInstance {
                 if (addr == null) {
                     continue;
                 }
+                // id 为0表示master节点，client只往master节点发送心跳包
                 if (consumerEmpty && MixAll.MASTER_ID != id) {
                     continue;
                 }
 
                 try {
+                    // 发送心跳
                     int version = this.mQClientAPIImpl.sendHeartbeat(addr, heartbeatData, clientConfig.getMqClientApiTimeout());
                     if (!this.brokerVersionTable.containsKey(brokerName)) {
                         this.brokerVersionTable.put(brokerName, new HashMap<>(4));
@@ -592,6 +606,7 @@ public class MQClientInstance {
     public boolean updateTopicRouteInfoFromNameServer(final String topic, boolean isDefault,
         DefaultMQProducer defaultMQProducer) {
         try {
+            // 尝试获取lock
             if (this.lockNamesrv.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
                 try {
                     TopicRouteData topicRouteData;
@@ -609,6 +624,7 @@ public class MQClientInstance {
                     }
                     if (topicRouteData != null) {
                         TopicRouteData old = this.topicRouteTable.get(topic);
+                        // 判断topic信息是否发生了变化
                         boolean changed = topicRouteData.topicRouteDataChanged(old);
                         if (!changed) {
                             changed = this.isNeedUpdateTopicRouteInfo(topic);
@@ -637,6 +653,7 @@ public class MQClientInstance {
                                 for (Entry<String, MQProducerInner> entry : this.producerTable.entrySet()) {
                                     MQProducerInner impl = entry.getValue();
                                     if (impl != null) {
+                                        // 每个producer都会缓存所有的topic信息
                                         impl.updateTopicPublishInfo(topic, publishInfo);
                                     }
                                 }
@@ -687,6 +704,7 @@ public class MQClientInstance {
         heartbeatData.setClientID(this.clientId);
 
         // Consumer
+        // client端消费者信息
         for (Map.Entry<String, MQConsumerInner> entry : this.consumerTable.entrySet()) {
             MQConsumerInner impl = entry.getValue();
             if (impl != null) {
@@ -703,6 +721,7 @@ public class MQClientInstance {
         }
 
         // Producer
+        // client端生产者信息
         for (Map.Entry<String/* group */, MQProducerInner> entry : this.producerTable.entrySet()) {
             MQProducerInner impl = entry.getValue();
             if (impl != null) {
